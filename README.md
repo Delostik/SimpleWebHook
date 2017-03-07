@@ -1,4 +1,10 @@
-## SimpleWebHook
-就是一个简单的为了git而存在的webhook
+# SimpleWebHook
 
-顺便练手一下martini
+Could be used with git, cron, etc.
+
+###Version
+	v0.1 could execute simple shell commands and provide simple web interfaces
+
+###Usage
+1. Edit config.conf like example provided
+2. Build and run main.go

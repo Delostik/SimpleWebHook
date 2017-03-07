@@ -1,35 +1,58 @@
+// TODO config module separation; refresh periodic.
+// TODO config file for parameters, use toml maybe
+// TODO set workspace
+// TODO martini log
+// TODO daemon controller
+// TODO automatic test cases
+
 package main
 
 import (
-	"github.com/codegangsta/martini"
-	"os"
-	"log"
-	"io/ioutil"
 	"encoding/json"
+	"github.com/codegangsta/martini"
+	"io/ioutil"
+	"log"
+	"os"
+	"os/exec"
 	"sync"
 )
 
-type Repository struct {
-	Id          string
-	RepoPath    string
-	ShellCode   string
+type Hooks struct {
+	Id        string
+	ShellCode string
 }
 
+var hookMap map[string]string // [Id] => ShellCode
+
 const confPath string = "config.conf"
-var conf []Repository
+
+var conf []Hooks
 
 var wg sync.WaitGroup
+var debugLog *log.Logger
 
+func killInstance() {
+	defer func() {
+		if err := recover(); err != nil {
+			debugLog.Fatalf("error while cleaning up exist instance: %v", err)
+		}
+	}()
+	// TODO kill exist instance (ps -ef |grep xx |awk '{print $2}' |kill -9)
+}
 
 func main() {
 	// log initialize
 	os.MkdirAll("log", os.ModePerm)
-	logFile, logErr  := os.Create("log/SimpleWebhook.log")
+	logFile, logErr := os.Create("log/SimpleWebhook.log")
 	defer logFile.Close()
 	if logErr != nil {
 		log.Fatalf("open file error: %v", logErr)
 	}
-	debugLog := log.New(logFile,"[Debug]",log.Llongfile)
+	debugLog = log.New(logFile, "[Debug]", log.Llongfile)
+	hookMap = make(map[string]string)
+
+	// kill exist instance
+	killInstance()
 
 	// config initialize
 	_, confErr := os.Stat(confPath)
@@ -58,14 +81,37 @@ func main() {
 	}
 
 	repoCnt := 0
-	for _, repo := range conf {
-
+	for _, hook := range conf {
+		if len(hook.Id) > 0 && len(hook.ShellCode) > 0 {
+			repoCnt++
+			hookMap[hook.Id] = hook.ShellCode
+			debugLog.Printf("New hook assigned: %v", hook.Id)
+		}
 	}
+	debugLog.Printf("%v hooks registered", repoCnt)
 
 	// martini initialize
 	m := martini.Classic()
-	m.Get("/", func() string {
-		return "fuck"
+
+	// TODO multi request(duplicated) handle
+	// TODO separate from main package
+	// TODO return value structure
+	m.Get("/:id", func(params martini.Params) string {
+		if id, existId := params["id"]; existId {
+			if shellCode, existHook := hookMap[id]; existHook {
+				debugLog.Printf("Receive hook call: %v", id)
+				output, err := exec.Command("/bin/sh", "-c", shellCode).Output()
+				if err != nil {
+					debugLog.Printf("Running shellcode error %v: %v", id, err)
+					return "error"
+				}
+				debugLog.Printf("Running result for %v: %v", id, output)
+				return "done"
+			}
+			debugLog.Printf("unknow id %v", id)
+			return "not found"
+		}
+		return "invalid request"
 	})
-	m.RunOnAddr(":8081")
+	m.RunOnAddr(":8009")
 }
