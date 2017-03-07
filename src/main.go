@@ -9,7 +9,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/codegangsta/martini"
+	"github.com/go-martini/martini"
 	"io/ioutil"
 	"log"
 	"os"
